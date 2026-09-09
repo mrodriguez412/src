@@ -16,7 +16,7 @@
 #include <Eigen/Core>
 #include <Eigen/Cholesky>
 
-// TEST
+// test
 
 class FloorPlaneRegression: public rclcpp::Node {
     protected:
