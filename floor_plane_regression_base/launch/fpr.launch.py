@@ -46,8 +46,8 @@ def generate_launch_description():
         launch_ros.actions.Node(
             package='floor_plane_regression_base', executable='floor_plane_regression', name='floor_plane_regression',
             parameters=[
-                {'~/base_frame': 'Vision_sensor'},
-                {'~/max_range': 10.0},
+                {'~/base_frame': 'bubbleRob'},
+                {'~/max_range': 3.0},
                 ],
             remappings=[
                 ('~/scans', '/points'),

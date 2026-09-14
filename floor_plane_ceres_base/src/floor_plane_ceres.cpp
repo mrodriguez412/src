@@ -44,7 +44,7 @@ DEFINE_string(sparse_linear_algebra_library, "suite_sparse",
 
 DEFINE_string(ordering, "automatic", "Options are: automatic, user.");
 
-DEFINE_bool(robustify, false, "Use a robust loss function.");
+DEFINE_bool(robustify, true, "Use a robust loss function.");
 DEFINE_double(eta, 1e-2, "Default value for eta. Eta determines the "
         "accuracy of each linear solve of the truncated newton step. "
         "Changing this parameter can affect solve performance.");

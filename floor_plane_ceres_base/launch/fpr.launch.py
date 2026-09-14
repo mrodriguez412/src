@@ -46,8 +46,8 @@ def generate_launch_description():
         launch_ros.actions.Node(
             package='floor_plane_ceres_base', executable='floor_plane_ceres', name='floor_plane_ceres',
             parameters=[
-                {'~/base_frame': 'Vision_sensor'},
-                {'~/max_range': 5.0},
+                {'~/base_frame': 'bubbleRob'},
+                {'~/max_range': 3.0},
                 {'~/function_tolerance': 1e-6},
                 {'~/num_threads': 4},
                 {'~/max_num_iterations': 100000},
