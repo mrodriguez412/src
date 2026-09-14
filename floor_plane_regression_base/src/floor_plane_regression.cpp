@@ -100,7 +100,7 @@ class FloorPlaneRegression: public rclcpp::Node {
             n = pidx.size();
             // Eigen is a matrix library. The line below create a 3x3 matrix A,
             // and a 3x1 vector B
-            Eigen::MatrixXf A(3,3);
+            Eigen::MatrixXf A(n,3);
             Eigen::MatrixXf B(n,1);
             for (unsigned int i=0;i<n;i++) {
                 // Assign x,y,z to the coordinates of the point we are
@@ -110,16 +110,15 @@ class FloorPlaneRegression: public rclcpp::Node {
                 double z = pc_baseframe[pidx[i]].z;
 
                 // Example of initialisation of the matrices (wrong)
-                A(0,0) = x;
-                A(1,1) = y;
-                A(2,2) = z;
+                A(i,0) = x;
+                A(i,1) = y;
+                A(i,2) = 1;
 
-                B(0,0) = x;
-                B(1,0) = y;
-                B(2,0) = z;
+                B(i,0) = z;
+                
             }
             // Eigen operation on matrices are very natural:
-            Eigen::MatrixXf X = A.transpose() * B;
+            Eigen::MatrixXf X = (A.transpose() * A).ldlt().solve(A.transpose() * B);
             // Details on linear solver can be found on 
             // http://eigen.tuxfamily.org/dox-devel/group__TutorialLinearAlgebra.html
             
