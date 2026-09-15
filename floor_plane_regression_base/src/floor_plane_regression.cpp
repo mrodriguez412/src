@@ -125,7 +125,6 @@ class FloorPlaneRegression: public rclcpp::Node {
             // Assuming the result is computed in vector X
             RCLCPP_INFO(this->get_logger(),"Extracted floor plane: z = %.2fx + %.2fy + %.2f",
                     X(0),X(1),X(2));
-
             // END OF TODO
 
             // Now build an orientation vector to display a marker in rviz
