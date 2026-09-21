@@ -1,0 +1,13 @@
+[WARN] [ros2bag]: Positional "topics" argument deprecated. Please use optional "--topics" argument instead.
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1789981616.995271656] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1789981617.000577934] [rosbag2_recorder]: Listening for topics...
+[INFO] [1789981617.000589695] [rosbag2_recorder]: Event publisher thread: Starting
+[INFO] [1789981617.006249495] [rosbag2_recorder]: Subscribed to topic '/vrep/localTwist'
+[INFO] [1789981617.006337259] [rosbag2_recorder]: Recording...
+[INFO] [1789981672.352149143] [rosbag2_recorder]: Subscribed to topic '/vrep/twistCommand'
+[INFO] [1789981672.452297339] [rosbag2_recorder]: All requested topics are subscribed. Stopping discovery...
+[INFO] [1789981928.649268811] [rosbag2_recorder]: Pausing recording.
+[INFO] [1789981928.649357128] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1789981928.658408996] [rosbag2_recorder]: Event publisher thread: Exiting
+[INFO] [1789981928.658474687] [rosbag2_recorder]: Recording stopped
+[INFO] [1789981928.659579681] [rclcpp]: signal_handler(SIGINT/SIGTERM)
