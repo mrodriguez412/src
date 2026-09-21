@@ -51,13 +51,13 @@ def generate_launch_description():
             package='model_prediction', executable='model_prediction_node', name='predict',
             parameters=[
                 {'~/rate': 50.0},
-                {'~/inverse_coef_list': False},
+                {'~/inverse_coef_list': True},
                 {'~/command_type': "geometry_msgs/Twist"},
                 {'~/command_field': "linear.x"},
-                {'~/command_coef_csv': "0.0,0.0"},
+                {'~/command_coef_csv': "0,0.11314275"},
                 {'~/state_type': "geometry_msgs/TwistStamped"},
                 {'~/state_field': "twist.linear.x"},
-                {'~/state_coef_csv': "-1.0,0.0"},
+                {'~/state_coef_csv': "-1.6357739,0.74676162"},
                 ],
             remappings=[
                 ('~/command', '/vrep/twistCommand'),
