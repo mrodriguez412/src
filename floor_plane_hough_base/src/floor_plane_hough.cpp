@@ -112,23 +112,53 @@ class FloorPlaneRegression: public rclcpp::Node {
             RCLCPP_INFO(this->get_logger(),"%d useful points out of %d",(int)n,(int)pc_sensor.size());
             // fill the accumulator with zeros
             accumulator = 0;
-            size_t best = 0;
+            int best = 0;
+            double X[3] = {0,0,0};
             for (unsigned int i=0;i<n;i++) {
                 double x = pc_baseframe[pidx[i]].x;
                 double y = pc_baseframe[pidx[i]].y;
                 double z = pc_baseframe[pidx[i]].z;
+
+                for(int ia=0; ia<n_a; ia++) {
+                    double a = a_min + ia * da;
+
+                    for(int ib=0; ib<n_b; ib++) {
+                        double b = b_min + ib * db;
+                        // Compute c from the plane equation
+                        double c = z - a*x - b*y;
+                        // Check if c is within bounds
+                        if (c < c_min || c > c_max) {
+                            continue; // ignore
+                        }
+                        // Discretize c
+                        int ic = round((c - c_min) / dc);
+                        if (ic < 0 || ic >= n_c) {
+                            continue; // ignore
+                        }
+                        // Update the accumulator
+                        accumulator(ia, ib, ic) += 1;
+                        // Update best score if necessary
+                        if (accumulator(ia, ib, ic) > best) {
+                            best = accumulator(ia, ib, ic);
+                            X[0] = a;
+                            X[1] = b;
+                            X[2] = c;
+                        }
+                    }
+                }
                 // Update the accumulator based on current point here
                 // individual cells in the accumulator can be accessed as follows
-                accumulator(0,0,0) = 1;
+                // accumulator(0,0,0) = 1;
                 // incrementing the counter, as an example
-                best += 1;
+                // best += 1;
             }
 
 
-            double X[3] = {0,0,0};
+            //double X[3] = {0,0,0};
             // Use the accumulator to find the best plane parameters and store
             // them in X (this will be used for display later)
             // X = {a,b,c}
+
 
             rclcpp::Duration dt = this->get_clock()->now() - now;
             // END OF TODO
@@ -171,7 +201,9 @@ class FloorPlaneRegression: public rclcpp::Node {
             m.color.b = 1.0;
 
             marker_pub_->publish(m);
+
             
+
         }
 
     public:
@@ -181,16 +213,16 @@ class FloorPlaneRegression: public rclcpp::Node {
             base_frame_ = this->get_parameter("~/base_frame").as_string();
             max_range_ = this->get_parameter("~/max_range").as_double();
 
-            // TODO: Update the launch file with relevant values for your problem 
-            this->declare_parameter("~/n_a",10);
-            this->declare_parameter("~/a_min",1.0);
+            // TODO: Update the launch file with relevant values for your problem
+            this->declare_parameter("~/n_a",21);
+            this->declare_parameter("~/a_min",-10.0);
             this->declare_parameter("~/a_max",1.0);
-            this->declare_parameter("~/n_b",10);
-            this->declare_parameter("~/b_min",1.0);
-            this->declare_parameter("~/b_max",1.0);
-            this->declare_parameter("~/n_c",10);
-            this->declare_parameter("~/c_min",1.0);
-            this->declare_parameter("~/c_max",1.0);
+            this->declare_parameter("~/n_b",3);
+            this->declare_parameter("~/b_min",-50.0);
+            this->declare_parameter("~/b_max",51.0);
+            this->declare_parameter("~/n_c",21);
+            this->declare_parameter("~/c_min",-2.0);
+            this->declare_parameter("~/c_max",0.0);
 
             n_a = this->get_parameter("~/n_a").as_int();
             a_min = this->get_parameter("~/a_min").as_double();
@@ -215,9 +247,9 @@ class FloorPlaneRegression: public rclcpp::Node {
             // Prepare da, db, dc, the steps between values based on min,max,n
             // for each dimension
 
-            da = 1;
-            db = 1;
-            dc = 1;
+            da = (a_max - a_min) / (n_a - 1);
+            db = (b_max - b_min) / (n_b - 1);
+            dc = (c_max - c_min) / (n_c - 1);
 
             // END TODO
 
