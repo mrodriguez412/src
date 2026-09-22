@@ -48,8 +48,8 @@ def generate_launch_description():
             parameters=[
                 {'~/base_frame': 'bubbleRob'},
                 {'~/max_range': 10.0},
-                {'~/n_samples': 10},
-                {'~/tolerance': 0.20},
+                {'~/n_samples': 50},
+                {'~/tolerance': 0.05},
                 ],
             remappings=[
                 ('~/scans', '/points'),

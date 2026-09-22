@@ -105,21 +105,44 @@ class FloorPlaneRegression: public rclcpp::Node {
                 // Implement RANSAC here. Useful commands:
                 // Select a random number in in [0,i-1]
                 size_t j = dsample(gen);
+                size_t k = dsample(gen);
+                size_t l = dsample(gen);
+
+
                 // Create a 3D point:
                 // Eigen::Vector3f P; P << x,y,z;
-                Eigen::Vector3f P; P << pc_baseframe[pidx[0]].x, pc_baseframe[pidx[0]].y, pc_baseframe[pidx[0]].z; 
-                // Dot product
-                double x = P.dot(P);
+                Eigen::Vector3f P; P << pc_baseframe[pidx[j]].x, pc_baseframe[pidx[j]].y, pc_baseframe[pidx[j]].z;
+                Eigen::Vector3f R; R << pc_baseframe[pidx[k]].x, pc_baseframe[pidx[k]].y, pc_baseframe[pidx[k]].z;
+                Eigen::Vector3f L; L << pc_baseframe[pidx[l]].x, pc_baseframe[pidx[l]].y, pc_baseframe[pidx[l]].z;
+
+                Eigen::Vector3f P_R = P - R;
+                Eigen::Vector3f P_L = P - L;
+
                 // Cross product
-                Eigen::Vector3f Q = P.cross(P); 
-                // Vector norm
-                double norm = P.norm();
+                Eigen::Vector3f N = P_R.cross(P_L);
+                if (N.norm() < 1e-6 || fabs(N(2)) < 1e-6) {
+                    continue; // degenerate sample (collinear points or vertical plane)
+                }
 
-                double a1 = abs(-0.6);
-                double a2 = fabs(-0.6);
-                double a3 = std::abs<double>(-0.6);
+                double a = -N(0)/N(2);
+                double b = -N(1)/N(2);
+                double c = P(2) - a*P(0) - b*P(1);
 
-
+                // Score: count the points close to this plane
+                std::vector<size_t> inliers;
+                for (unsigned int m=0;m<n;m++) {
+                    const pcl::PointXYZ & p = pc_baseframe[pidx[m]];
+                    if (fabs(p.z - (a*p.x + b*p.y + c)) < tolerance_) {
+                        inliers.push_back(pidx[m]);
+                    }
+                }
+                // Keep the best plane seen so far
+                if (inliers.size() > best) {
+                    best = inliers.size();
+                    X[0] = a; X[1] = b; X[2] = c;
+                    pinliers = inliers;
+                }
+                
             }
             // At the end, make sure to store the best plane estimate in X
             // X = {a,b,c}. This will be used for display
@@ -164,7 +187,13 @@ class FloorPlaneRegression: public rclcpp::Node {
             m.color.b = 1.0;
 
             marker_pub_->publish(m);
-            
+
+            for (size_t idx : pinliers) pc_inliers.push_back(pc_baseframe[idx]);
+            sensor_msgs::msg::PointCloud2 inliers_msg;
+            pcl::toROSMsg(pc_inliers,inliers_msg);
+            inliers_msg.header.stamp = msg->header.stamp;
+            inliers_msg.header.frame_id = base_frame_;
+            inlier_pub_->publish(inliers_msg);
         }
 
     public:
