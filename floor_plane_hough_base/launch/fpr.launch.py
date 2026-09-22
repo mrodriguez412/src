@@ -47,16 +47,17 @@ def generate_launch_description():
             package='floor_plane_hough_base', executable='floor_plane_hough', name='floor_plane_hough',
             parameters=[
                 {'~/base_frame': 'bubbleRob'},
-                {'~/max_range': 2.0},
-                {'~/n_a': 21},
-                {'~/a_min': -10.0},
-                {'~/a_max': 1.0},
-                {'~/n_b': 3},
-                {'~/b_min': -50.0},
-                {'~/b_max': 51.0},
-                {'~/n_c': 21},
-                {'~/c_min': -2.0},
-                {'~/c_max': 0.0},
+                {'~/max_range': 5.0},
+                # Expected floor (regression): z = 0.01x - 0.19y - 0.21
+                {'~/n_a': 41},
+                {'~/a_min': -0.5},
+                {'~/a_max': 0.5},
+                {'~/n_b': 41},
+                {'~/b_min': -0.5},
+                {'~/b_max': 0.5},
+                {'~/n_c': 41},
+                {'~/c_min': -0.6},
+                {'~/c_max': 0.2}
                 ],
             remappings=[
                 ('~/scans', '/points'),

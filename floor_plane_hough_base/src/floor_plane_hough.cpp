@@ -142,7 +142,7 @@ class FloorPlaneRegression: public rclcpp::Node {
                             best = accumulator(ia, ib, ic);
                             X[0] = a;
                             X[1] = b;
-                            X[2] = c;
+                            X[2] = c_min + ic * dc;
                         }
                     }
                 }
@@ -202,7 +202,19 @@ class FloorPlaneRegression: public rclcpp::Node {
 
             marker_pub_->publish(m);
 
-            
+            // Publish the points lying close to the extracted plane
+            pcl::PointCloud<pcl::PointXYZ> pc_inliers;
+            for (unsigned int i=0;i<n;i++) {
+                const pcl::PointXYZ & p = pc_baseframe[pidx[i]];
+                if (fabs(p.z - (X[0]*p.x + X[1]*p.y + X[2])) < dc) {
+                    pc_inliers.push_back(p);
+                }
+            }
+            sensor_msgs::msg::PointCloud2 inliers_msg;
+            pcl::toROSMsg(pc_inliers,inliers_msg);
+            inliers_msg.header.stamp = msg->header.stamp;
+            inliers_msg.header.frame_id = base_frame_;
+            inlier_pub_->publish(inliers_msg);
 
         }
 
