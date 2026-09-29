@@ -1,0 +1,106 @@
+cmake_minimum_required(VERSION 3.5)
+project(task_manager_turtlesim_sync)
+
+# Default to C99
+if(NOT CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 99)
+endif()
+
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic -g -ggdb)
+endif()
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(turtlesim REQUIRED)
+find_package(turtlesim_msgs REQUIRED)
+find_package(task_manager_sync REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # uncomment the line when a copyright and license is not present in all source files
+  #set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # uncomment the line when this package is not in a git repo
+  #set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+include_directories(
+  include
+  ${rclcpp_INCLUDE_DIRS}
+  ${std_msgs_INCLUDE_DIRS}
+  ${geometry_msgs_INCLUDE_DIRS}
+  ${turtlesim_INCLUDE_DIRS}
+  ${turtlesim_msgs_INCLUDE_DIRS}
+  ${task_manager_sync_INCLUDE_DIRS}
+)
+
+SET(ALL_LIBS ${rclcpp_LIBRARIES} ${task_manager_sync_LIBRARIES} ${std_msgs_LIBRARIES}  ${turtlesim_LIBRARIES} ${turtlesim_msgs_LIBRARIES} ${CMAKE_DL_LIBS})
+
+file(SHA256 ${PROJECT_SOURCE_DIR}/include/task_manager_turtlesim_sync/TurtleSimEnv.h ENV_CHECK_SUM)
+add_compile_definitions(ENV_CHECK_SUM=${ENV_CHECK_SUM})
+
+ADD_EXECUTABLE( turtlesim_task_server_sync src/task_server.cpp src/TurtleSimEnv.cpp) 
+# ament_target_dependencies(turtlesim_task_server_sync task_manager_sync
+#     geometry_msgs rclcpp std_msgs)
+
+# Necessary target for the tasks to see the symbols of the main
+TARGET_LINK_OPTIONS(turtlesim_task_server_sync PRIVATE "-rdynamic")
+target_link_libraries(turtlesim_task_server_sync PUBLIC 
+      ${geometry_msgs_TARGETS}
+      ${std_msgs_TARGETS}
+      ${task_manager_msgs_TARGETS}
+      ${turtlesim_msgs_TARGETS}
+      rclcpp::rclcpp
+      ${task_manager_lib_LIBRARIES}
+      ${task_manager_sync_LIBRARIES}
+      ${turtlesim_LIBRARIES}
+      ${CMAKE_DL_LIBS}
+)
+
+
+
+ADD_LIBRARY( turtlesim_TaskGoTo SHARED tasks/TaskGoTo.cpp)
+TARGET_LINK_LIBRARIES(turtlesim_TaskGoTo ${ALL_LIBS})
+
+ADD_LIBRARY( turtlesim_TaskReachAngle SHARED tasks/TaskReachAngle.cpp)
+TARGET_LINK_LIBRARIES(turtlesim_TaskReachAngle ${ALL_LIBS})
+
+ADD_LIBRARY( turtlesim_TaskSpawn SHARED tasks/TaskSpawnGeneric.cpp)
+TARGET_LINK_LIBRARIES(turtlesim_TaskSpawn ${ALL_LIBS})
+
+install(TARGETS
+  turtlesim_task_server_sync
+  DESTINATION lib/${PROJECT_NAME})
+
+
+install(TARGETS
+    turtlesim_TaskGoTo
+    turtlesim_TaskReachAngle
+    turtlesim_TaskSpawn
+    DESTINATION lib/${PROJECT_NAME})
+
+install(
+  DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(PROGRAMS  
+    missions/mission1.py
+    missions/mission2.py
+    missions/mission3.py
+    DESTINATION lib/${PROJECT_NAME} 
+)
+
+
+ament_package()

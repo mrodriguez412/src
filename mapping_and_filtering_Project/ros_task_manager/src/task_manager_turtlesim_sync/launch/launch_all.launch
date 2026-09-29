@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<launch>
+    <include file="$(find-pkg-share task_manager_turtlesim_sync)/launch_server.launch"/>
+    <node name="mission1" pkg="task_manager_turtlesim_sync" exec="mission1.py"  >
+        <param name="server" value="/turtlesim_tasks1"/>
+    </node>
+    <node name="mission2" pkg="task_manager_turtlesim_sync" exec="mission2.py"  >
+        <param name="server" value="/turtlesim_tasks2"/>
+    </node>
+    <node name="mission3" pkg="task_manager_turtlesim_sync" exec="mission3.py"  >
+        <param name="server" value="/turtlesim_tasks3"/>
+    </node>
+</launch>
