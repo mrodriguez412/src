@@ -20,6 +20,7 @@ class FloorPlaneRegression: public rclcpp::Node {
     protected:
         rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr scan_sub_;
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr inlier_pub_;
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr outlier_pub_;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
         // rclcpp::Client<topic_tools::srv::MuxSelect>::SharedPtr muxClt;
         std::shared_ptr<tf2_ros::TransformListener> tf_listener{nullptr};
@@ -100,6 +101,7 @@ class FloorPlaneRegression: public rclcpp::Node {
             rclcpp::Time now = this->get_clock()->now();
             RCLCPP_INFO(this->get_logger(),"%d useful points out of %d",(int)n,(int)pc_sensor.size());
             std::vector<size_t> pinliers;
+            std::vector<size_t> poutliers;
             std::uniform_int_distribution<> dsample(0, n-1);
             for (unsigned int i=0;i<(unsigned)n_samples_;i++) {
                 // Implement RANSAC here. Useful commands:
@@ -130,10 +132,13 @@ class FloorPlaneRegression: public rclcpp::Node {
 
                 // Score: count the points close to this plane
                 std::vector<size_t> inliers;
+                std::vector<size_t> outliers;
                 for (unsigned int m=0;m<n;m++) {
                     const pcl::PointXYZ & p = pc_baseframe[pidx[m]];
                     if (fabs(p.z - (a*p.x + b*p.y + c)) < tolerance_) {
                         inliers.push_back(pidx[m]);
+                    } else {
+                        outliers.push_back(pidx[m]);
                     }
                 }
                 // Keep the best plane seen so far
@@ -141,6 +146,7 @@ class FloorPlaneRegression: public rclcpp::Node {
                     best = inliers.size();
                     X[0] = a; X[1] = b; X[2] = c;
                     pinliers = inliers;
+                    poutliers = outliers;
                 }
                 
             }
@@ -188,12 +194,22 @@ class FloorPlaneRegression: public rclcpp::Node {
 
             marker_pub_->publish(m);
 
+
+            // publish the inliers
             for (size_t idx : pinliers) pc_inliers.push_back(pc_baseframe[idx]);
             sensor_msgs::msg::PointCloud2 inliers_msg;
             pcl::toROSMsg(pc_inliers,inliers_msg);
             inliers_msg.header.stamp = msg->header.stamp;
             inliers_msg.header.frame_id = base_frame_;
             inlier_pub_->publish(inliers_msg);
+
+            // publish the outliers
+            for (size_t idx : poutliers) pc_outliers.push_back(pc_baseframe[idx]);
+            sensor_msgs::msg::PointCloud2 outliers_msg;
+            pcl::toROSMsg(pc_outliers,outliers_msg);
+            outliers_msg.header.stamp = msg->header.stamp;
+            outliers_msg.header.frame_id = base_frame_;
+            outlier_pub_->publish(outliers_msg);
         }
 
     public:
@@ -217,6 +233,7 @@ class FloorPlaneRegression: public rclcpp::Node {
             scan_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>("~/scans",qos,
                     std::bind(&FloorPlaneRegression::pointCloudCallback,this,std::placeholders::_1));
             inlier_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/inliers",1);
+            outlier_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/outliers",1);
             marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("~/floor_plane",1);
 
         }
