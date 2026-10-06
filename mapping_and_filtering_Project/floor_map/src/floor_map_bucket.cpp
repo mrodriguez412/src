@@ -4,12 +4,10 @@
 #include <map>
 #include <vector>
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <sensor_msgs/msg/laser_scan.hpp>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <visualization_msgs/msg/marker.hpp>
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
@@ -26,7 +24,6 @@ class FloorMapBucket: public rclcpp::Node {
         rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr scan_sub_;
         rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_pub_;
         rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr cost_map_pub_;
-        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr inlier_pub_;
         rclcpp::TimerBase::SharedPtr map_timer_;
         std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
         std::shared_ptr<tf2_ros::TransformListener> tf_listener_;

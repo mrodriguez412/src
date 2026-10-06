@@ -22,7 +22,7 @@ find_package(nav_msgs REQUIRED)
 find_package(PCL REQUIRED QUIET COMPONENTS common io)
 
 add_executable(floor_map_bucket src/floor_map_bucket.cpp)
-#add_executable(floor_map_sobel src/floor_map_sobel.cpp)
+add_executable(floor_map_sobel src/floor_map_sobel.cpp)
 #add_executable(floor_map_miniransac src/floor_map_miniransac.cpp)
 
 ament_target_dependencies(floor_map_bucket
@@ -42,7 +42,24 @@ target_link_libraries(floor_map_bucket
   Eigen3::Eigen
 )
 
-install(TARGETS floor_map_bucket
+ament_target_dependencies(floor_map_sobel
+  rclcpp
+  sensor_msgs
+  nav_msgs
+  geometry_msgs
+  tf2
+  tf2_ros
+  tf2_sensor_msgs
+  pcl_conversions
+  cv_bridge
+)
+target_link_libraries(floor_map_sobel
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBS}
+  Eigen3::Eigen
+)
+
+install(TARGETS floor_map_bucket floor_map_sobel
   DESTINATION lib/${PROJECT_NAME})
 
 install(
