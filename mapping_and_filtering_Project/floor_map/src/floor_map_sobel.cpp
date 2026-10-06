@@ -51,6 +51,8 @@ protected:
     double max_slope_angle_;  // Seuil de pente binaire (ex: 15° en radians)
     double max_scale_angle_;  // Échelle max pour le coût continu [0, 100] (ex: 30° en radians)
     double max_z_diff_;       // Seuil de saut vertical dans une cellule (ex: 0.08 m)
+    double min_range_;        // Portée minimale (m)
+    double max_range_;        // Portée maximale (m)
     int min_points_bucket_;   // Nombre minimum de points requis par cellule
 
     // Digital Elevation Model (DEM)
@@ -94,17 +96,32 @@ protected:
         }
         pcl::fromPCLPointCloud2(cloud2, pc_target);
 
-        // 1. Accumulation glissante des points dans le DEM (Option A)
-        for (const auto & p : pc_target) {
-            if (std::hypot(p.x, p.y) < 1e-2) continue; // ignore les points à l'origine du capteur
+        // 1. Accumulation glissante des points dans le DEM avec filtrage 3D de portée
+        size_t n = pc_sensor.size();
+        for (size_t i = 0; i < n; ++i) {
+            const auto & ps = pc_sensor[i];
+            const auto & pt = pc_target[i];
+
+            // Rejet des NaN / Inf
+            if (!std::isfinite(ps.x) || !std::isfinite(ps.y) || !std::isfinite(ps.z) ||
+                !std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z)) {
+                continue;
+            }
+
+            // Distance 3D euclidienne au centre optique de la caméra Kinect
+            float d_sensor = std::sqrt(ps.x * ps.x + ps.y * ps.y + ps.z * ps.z);
+            if (d_sensor < min_range_ || d_sensor > max_range_) {
+                continue;
+            }
+
             int gx, gy;
-            if (worldToGrid(p.x, p.y, gx, gy)) {
-                dem_sum_z_.at<float>(gy, gx) += p.z;
+            if (worldToGrid(pt.x, pt.y, gx, gy)) {
+                dem_sum_z_.at<float>(gy, gx) += pt.z;
                 int count = ++dem_count_.at<int>(gy, gx);
                 dem_mean_z_.at<float>(gy, gx) = dem_sum_z_.at<float>(gy, gx) / count;
 
-                if (p.z < dem_min_z_.at<float>(gy, gx)) dem_min_z_.at<float>(gy, gx) = p.z;
-                if (p.z > dem_max_z_.at<float>(gy, gx)) dem_max_z_.at<float>(gy, gx) = p.z;
+                if (pt.z < dem_min_z_.at<float>(gy, gx)) dem_min_z_.at<float>(gy, gx) = pt.z;
+                if (pt.z > dem_max_z_.at<float>(gy, gx)) dem_max_z_.at<float>(gy, gx) = pt.z;
 
                 if (count >= min_points_bucket_) {
                     valid_mask_.at<uint8_t>(gy, gx) = 255;
@@ -251,6 +268,8 @@ public:
         this->declare_parameter("max_slope_angle", 15.0 * M_PI / 180.0); // 15° en rad
         this->declare_parameter("max_scale_angle", 30.0 * M_PI / 180.0); // 30° en rad
         this->declare_parameter("max_z_diff", 0.08);                     // 8 cm
+        this->declare_parameter("min_range", 0.4);                       // 40 cm
+        this->declare_parameter("max_range", 3.5);                       // 3.5 m
         this->declare_parameter("min_points_bucket", 5);
 
         // Lecture des paramètres
@@ -263,6 +282,8 @@ public:
         max_slope_angle_ = this->get_parameter("max_slope_angle").as_double();
         max_scale_angle_ = this->get_parameter("max_scale_angle").as_double();
         max_z_diff_ = this->get_parameter("max_z_diff").as_double();
+        min_range_ = this->get_parameter("min_range").as_double();
+        max_range_ = this->get_parameter("max_range").as_double();
         min_points_bucket_ = this->get_parameter("min_points_bucket").as_int();
 
         // Calcul des dimensions de la grille

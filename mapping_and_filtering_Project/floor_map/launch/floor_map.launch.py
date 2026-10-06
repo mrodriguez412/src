@@ -25,6 +25,18 @@ def generate_launch_description():
         description='Grid resolution in meters per cell'
     )
 
+    min_range_arg = DeclareLaunchArgument(
+        'min_range',
+        default_value='0.4',
+        description='Minimum sensor distance in meters (rejects near body/noise)'
+    )
+
+    max_range_arg = DeclareLaunchArgument(
+        'max_range',
+        default_value='3.5',
+        description='Maximum sensor distance in meters (rejects far clipping wall)'
+    )
+
     # Nœud 1 : Méthode par seaux / hachage spatial
     bucket_node = launch_ros.actions.Node(
         package='floor_map',
@@ -42,6 +54,8 @@ def generate_launch_description():
             {'max_z_diff': 0.08},
             {'max_scale_angle': 0.5236},  # 30 deg en radians
             {'max_scale_height': 0.5},   # 0.5 m
+            {'min_range': LaunchConfiguration('min_range')},
+            {'max_range': LaunchConfiguration('max_range')},
             {'min_points_bucket': 5},
             {'target_frame': 'world'},
         ],
@@ -63,6 +77,8 @@ def generate_launch_description():
             {'max_slope_angle': 0.2618},  # 15 deg en radians
             {'max_scale_angle': 0.5236},  # 30 deg en radians
             {'max_z_diff': 0.08},         # Seuil marches internes
+            {'min_range': LaunchConfiguration('min_range')},
+            {'max_range': LaunchConfiguration('max_range')},
             {'min_points_bucket': 5},
             {'target_frame': 'world'},
         ],
@@ -73,6 +89,8 @@ def generate_launch_description():
         method_arg,
         metric_arg,
         resolution_arg,
+        min_range_arg,
+        max_range_arg,
         bucket_node,
         sobel_node,
     ])

@@ -43,6 +43,8 @@ class FloorMapBucket: public rclcpp::Node {
         double max_z_sigma_;
         double max_scale_angle_;  
         double max_scale_height_; 
+        double min_range_;
+        double max_range_;
         int min_points_bucket_;   
         
         cv::Mat map_;
@@ -82,27 +84,28 @@ class FloorMapBucket: public rclcpp::Node {
             // PCL Pointcloud2 to templated form
             pcl::fromPCLPointCloud2(cloud2,pc_target);
 
-            // 1. Remplissage des buckets
+            // 1. Remplissage des buckets avec filtrage 3D de la portée capteur
             std::map<std::pair<int, int>, std::vector<pcl::PointXYZ>> buckets;
+            size_t n = pc_sensor.size();
+            for (size_t i = 0; i < n; ++i) {
+                const auto & ps = pc_sensor[i];
+                const auto & pt = pc_target[i];
 
-
-
-            unsigned int n = pc_sensor.size();
-            for (unsigned int i=0;i<n;i++) {
-                float x = pc_sensor[i].x;
-                float y = pc_sensor[i].y;
-                float d = hypot(x,y);
-                if (d < 1e-2) {
-                    // Bogus point, ignore
+                // Rejet des NaN / Inf
+                if (!std::isfinite(ps.x) || !std::isfinite(ps.y) || !std::isfinite(ps.z) ||
+                    !std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z)) {
                     continue;
                 }
-                if (d > 0.6) {
-                    // too far, ignore
+
+                // Distance 3D euclidienne au centre optique de la caméra Kinect
+                float d_sensor = std::sqrt(ps.x * ps.x + ps.y * ps.y + ps.z * ps.z);
+                if (d_sensor < min_range_ || d_sensor > max_range_) {
                     continue;
                 }
+
                 int gx, gy;
-                if (worldToGrid(pc_target[i].x, pc_target[i].y, gx, gy)) {
-                    buckets[{gx, gy}].push_back(pc_target[i]);
+                if (worldToGrid(pt.x, pt.y, gx, gy)) {
+                    buckets[{gx, gy}].push_back(pt);
                 }
             }
             
@@ -253,6 +256,8 @@ class FloorMapBucket: public rclcpp::Node {
             this->declare_parameter("max_z_sigma", 0.02);
             this->declare_parameter("max_scale_angle", 30.0 * M_PI / 180.0);
             this->declare_parameter("max_scale_height", 0.5);
+            this->declare_parameter("min_range", 0.4);
+            this->declare_parameter("max_range", 3.5);
             this->declare_parameter("min_points_bucket", 5);
 
             min_x_ = this->get_parameter("min_x").as_double();
@@ -266,6 +271,8 @@ class FloorMapBucket: public rclcpp::Node {
             max_z_sigma_ = this->get_parameter("max_z_sigma").as_double();
             max_scale_angle_ = this->get_parameter("max_scale_angle").as_double();
             max_scale_height_ = this->get_parameter("max_scale_height").as_double();
+            min_range_ = this->get_parameter("min_range").as_double();
+            max_range_ = this->get_parameter("max_range").as_double();
             min_points_bucket_ = this->get_parameter("min_points_bucket").as_int();
 
             // Calcul des dimensions de la grille
