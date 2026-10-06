@@ -84,13 +84,28 @@ class FloorMapBucket: public rclcpp::Node {
 
             // 1. Remplissage des buckets
             std::map<std::pair<int, int>, std::vector<pcl::PointXYZ>> buckets;
-            for (const auto & p : pc_target) {
-                if (std::hypot(p.x, p.y) < 1e-2) continue; // ignore les points à l'origine
+
+
+
+            unsigned int n = pc_sensor.size();
+            for (unsigned int i=0;i<n;i++) {
+                float x = pc_sensor[i].x;
+                float y = pc_sensor[i].y;
+                float d = hypot(x,y);
+                if (d < 1e-2) {
+                    // Bogus point, ignore
+                    continue;
+                }
+                if (d > 0.6) {
+                    // too far, ignore
+                    continue;
+                }
                 int gx, gy;
-                if (worldToGrid(p.x, p.y, gx, gy)) {
-                    buckets[{gx, gy}].push_back(p);
+                if (worldToGrid(pc_target[i].x, pc_target[i].y, gx, gy)) {
+                    buckets[{gx, gy}].push_back(pc_target[i]);
                 }
             }
+            
 
             // 2. Évaluation de chaque bucket
             for (const auto & entry : buckets) {

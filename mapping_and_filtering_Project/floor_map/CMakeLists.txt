@@ -10,6 +10,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(cv_bridge REQUIRED)
@@ -35,6 +36,7 @@ ament_target_dependencies(floor_map_bucket
   tf2_sensor_msgs
   pcl_conversions
   cv_bridge
+  tf2_geometry_msgs
 )
 target_link_libraries(floor_map_bucket
   ${PCL_LIBRARIES}
@@ -52,6 +54,7 @@ ament_target_dependencies(floor_map_sobel
   tf2_sensor_msgs
   pcl_conversions
   cv_bridge
+  tf2_geometry_msgs
 )
 target_link_libraries(floor_map_sobel
   ${PCL_LIBRARIES}
