@@ -256,8 +256,8 @@ class FloorMapBucket: public rclcpp::Node {
             this->declare_parameter("max_z_sigma", 0.02);
             this->declare_parameter("max_scale_angle", 30.0 * M_PI / 180.0);
             this->declare_parameter("max_scale_height", 0.5);
-            this->declare_parameter("min_range", 0.4);
-            this->declare_parameter("max_range", 3.5);
+            this->declare_parameter("min_range", 0.1);
+            this->declare_parameter("max_range", 4.0);
             this->declare_parameter("min_points_bucket", 5);
 
             min_x_ = this->get_parameter("min_x").as_double();
@@ -298,9 +298,9 @@ class FloorMapBucket: public rclcpp::Node {
             cost_map_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("~/cost_map", 1);
 
             // Timer à 2 Hz (500 ms) pour rafraîchir et publier les cartes en continu
-            map_timer_ = this->create_wall_timer(
-                std::chrono::milliseconds(500),
-                std::bind(&FloorMapBucket::publishMap, this));
+            //map_timer_ = this->create_wall_timer(
+            //    std::chrono::milliseconds(100),
+            //    std::bind(&FloorMapBucket::publishMap, this));
 
             RCLCPP_INFO(this->get_logger(),
                         "FloorMapBucket pret : grille %dx%d (resolution %.2fm), metrique '%s'",
