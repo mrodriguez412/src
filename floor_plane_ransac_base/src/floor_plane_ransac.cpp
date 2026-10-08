@@ -38,7 +38,7 @@ class FloorPlaneRegression: public rclcpp::Node {
     protected: // ROS Callbacks
 
         void pointCloudCallback(sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-            pcl::PointCloud<pcl::PointXYZ> pc_sensor, pc_baseframe, pc_inliers;
+            pcl::PointCloud<pcl::PointXYZ> pc_sensor, pc_baseframe, pc_inliers, pc_outliers;
             pcl::PCLPointCloud2 cloud2;
             pcl_conversions::toPCL(*msg,cloud2);    
             pcl::fromPCLPointCloud2(cloud2,pc_sensor);

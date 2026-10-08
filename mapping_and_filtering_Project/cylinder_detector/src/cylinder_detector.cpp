@@ -36,6 +36,7 @@ class CylinderDetector: public rclcpp::Node {
             double z_min, z_max;
             double weight; // Number of inliers merged into this estimate
             int n_obs;     // Number of detections merged into this estimate
+            double confidence; // In [0,1], averaged over the detections like the geometry
         };
 
         rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr scan_sub_;
@@ -66,6 +67,7 @@ class CylinderDetector: public rclcpp::Node {
         double min_height_;
         double assoc_distance_;
         int min_observations_;
+        double min_confidence_;
 
         std::random_device rd_;
         std::mt19937 gen_;
@@ -143,8 +145,9 @@ class CylinderDetector: public rclcpp::Node {
             for (const auto & d : detections) {
                 size_t k = integrate(d);
                 if (cylinders_[k].n_obs == min_observations_) {
-                    RCLCPP_INFO(this->get_logger(), "Cylinder #%zu confirmed at (%.2f, %.2f), r = %.2f",
-                            k, cylinders_[k].cx, cylinders_[k].cy, cylinders_[k].r);
+                    RCLCPP_INFO(this->get_logger(), "Cylinder #%zu seen %d times at (%.2f, %.2f), r = %.2f, confidence %.2f",
+                            k, min_observations_, cylinders_[k].cx, cylinders_[k].cy, cylinders_[k].r,
+                            cylinders_[k].confidence);
                 }
             }
 
@@ -357,7 +360,10 @@ class CylinderDetector: public rclcpp::Node {
             angles.reserve(inliers.size());
             double mx = 0.0, my = 0.0;
             double z_min = pts[inliers[0]].z, z_max = z_min;
+            double sq_residual = 0.0;
             for (size_t i : inliers) {
+                double e = std::hypot(pts[i].x - c.cx, pts[i].y - c.cy) - c.r;
+                sq_residual += e * e;
                 angles.push_back(std::atan2(pts[i].y - c.cy, pts[i].x - c.cx));
                 mx += pts[i].x;
                 my += pts[i].y;
@@ -405,6 +411,15 @@ class CylinderDetector: public rclcpp::Node {
             out.z_max = z_max;
             out.weight = inliers.size();
             out.n_obs = 1;
+
+            // Confidence: on a real cylinder the inliers hug the circle (small residual) and the
+            // ring around it holds nothing else. On boxes, sofas or bushes the surface only
+            // crosses the tolerance band, so the residuals spread over the whole band
+            // (rms ~ tolerance / sqrt(3)) and the ring holds extra points.
+            double rms = std::sqrt(sq_residual / inliers.size());
+            double fit_score = std::max(0.0, 1.0 - rms / tolerance_);
+            double ring_score = std::min(1.0, static_cast<double>(inliers.size()) / std::max<size_t>(n_ring, 1));
+            out.confidence = fit_score * ring_score;
             return true;
         }
 
@@ -433,6 +448,7 @@ class CylinderDetector: public rclcpp::Node {
             c.r = (c.weight * c.r + d.weight * d.r) / w;
             c.z_min = std::min(c.z_min, d.z_min);
             c.z_max = std::max(c.z_max, d.z_max);
+            c.confidence = (c.weight * c.confidence + d.weight * d.confidence) / w;
             c.weight = w;
             c.n_obs += 1;
             return closest;
@@ -452,8 +468,8 @@ class CylinderDetector: public rclcpp::Node {
             rclcpp::Time now = this->get_clock()->now();
             for (size_t k = 0; k < cylinders_.size(); ++k) {
                 const Cylinder & c = cylinders_[k];
-                if (c.n_obs < min_observations_) {
-                    continue; // Not confirmed yet
+                if (c.n_obs < min_observations_ || c.confidence < min_confidence_) {
+                    continue; // Not confirmed yet, or not cylinder-like enough
                 }
                 // The ground filter cuts the bottom floor_clearance of the cylinders
                 double z_bottom = c.z_min - floor_clearance_;
@@ -489,7 +505,7 @@ class CylinderDetector: public rclcpp::Node {
                 label.color.g = 1.0;
                 label.color.b = 1.0;
                 char text[64];
-                snprintf(text, sizeof(text), "#%zu r=%.2f n=%d", k, c.r, c.n_obs);
+                snprintf(text, sizeof(text), "#%zu r=%.2f n=%d c=%.2f", k, c.r, c.n_obs, c.confidence);
                 label.text = text;
                 markers.markers.push_back(label);
             }
@@ -518,6 +534,7 @@ class CylinderDetector: public rclcpp::Node {
             this->declare_parameter("min_height", 0.1);
             this->declare_parameter("assoc_distance", 0.3);
             this->declare_parameter("min_observations", 3);
+            this->declare_parameter("min_confidence", 0.5);
 
             target_frame_ = this->get_parameter("target_frame").as_string();
             min_range_ = this->get_parameter("min_range").as_double();
@@ -539,6 +556,7 @@ class CylinderDetector: public rclcpp::Node {
             min_height_ = this->get_parameter("min_height").as_double();
             assoc_distance_ = this->get_parameter("assoc_distance").as_double();
             min_observations_ = this->get_parameter("min_observations").as_int();
+            min_confidence_ = this->get_parameter("min_confidence").as_double();
 
             tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
             tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);

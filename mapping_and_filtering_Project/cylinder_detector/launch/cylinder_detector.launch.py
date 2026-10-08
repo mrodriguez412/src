@@ -32,6 +32,7 @@ def generate_launch_description():
             # Map of cylinders
             {'assoc_distance': 0.3},        # m, max distance between centres to merge
             {'min_observations': 3},        # detections needed before publishing a cylinder
+            {'min_confidence': 0.5},        # [0,1], fit tightness x ring cleanliness, averaged over detections
         ],
         output='screen',
     )
