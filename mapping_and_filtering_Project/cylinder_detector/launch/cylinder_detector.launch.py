@@ -12,11 +12,10 @@ def generate_launch_description():
             # Point selection
             {'min_range': 0.4},             # m, rejects the robot body and near noise
             {'max_range': 3.5},             # m, rejects noisy long-range points
-            {'floor_z': 0.0},               # m, floor height in target_frame
-            {'floor_clearance': 0.05},      # m, points below floor_z + floor_clearance are floor
-            {'max_z': 2.0},                 # m
+            {'floor_clearance': 0.05},      # m, points lower than this above the local ground are ground
+            {'max_height': 2.0},            # m, above the local ground
             {'voxel_size': 0.02},           # m, one point kept per voxel
-            {'cluster_resolution': 0.05},   # m, grid cell size used to cluster the obstacles
+            {'cluster_resolution': 0.05},   # m, grid cell size for the local ground and the clustering
             # Circle RANSAC
             {'n_samples': 200},
             {'tolerance': 0.015},           # m, max distance to the circle for an inlier

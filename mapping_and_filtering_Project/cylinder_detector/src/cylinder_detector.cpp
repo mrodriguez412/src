@@ -4,6 +4,7 @@
 #include <iterator>
 #include <limits>
 #include <random>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <rclcpp/rclcpp.hpp>
@@ -48,9 +49,8 @@ class CylinderDetector: public rclcpp::Node {
         std::string target_frame_;
         double min_range_;
         double max_range_;
-        double floor_z_;
         double floor_clearance_;
-        double max_z_;
+        double max_height_;
         double voxel_size_;
         double cluster_resolution_;
         int n_samples_;
@@ -100,9 +100,10 @@ class CylinderDetector: public rclcpp::Node {
             const double sensor_x = transformStamped.transform.translation.x;
             const double sensor_y = transformStamped.transform.translation.y;
 
-            // 1. Keep the points in sensor range and above the floor, one point per voxel
-            pcl::PointCloud<pcl::PointXYZ> obstacles;
-            std::unordered_set<int64_t> voxels;
+            // 1. Local ground: the lowest point of each 2D cell. Upright objects stand on the
+            // ground, so this also holds under obstacles, on ramps and on every level.
+            std::vector<size_t> valid;
+            std::unordered_map<int64_t, float> ground;
             for (size_t i = 0; i < pc_sensor.size(); ++i) {
                 const auto & ps = pc_sensor[i];
                 const auto & pt = pc_target[i];
@@ -117,16 +118,19 @@ class CylinderDetector: public rclcpp::Node {
                     continue;
                 }
 
-                if (pt.z < floor_z_ + floor_clearance_ || pt.z > max_z_) {
-                    continue;
-                }
+                valid.push_back(i);
+                float & g = ground.emplace(gridKey(pt.x, pt.y, 0.0, cluster_resolution_), pt.z).first->second;
+                g = std::min(g, pt.z);
+            }
 
-                // 21 bits per axis: unique keys within +/- 2^20 voxels of the origin
-                int64_t ix = static_cast<int64_t>(std::floor(pt.x / voxel_size_));
-                int64_t iy = static_cast<int64_t>(std::floor(pt.y / voxel_size_));
-                int64_t iz = static_cast<int64_t>(std::floor(pt.z / voxel_size_));
-                int64_t key = ((ix & 0x1FFFFF) << 42) | ((iy & 0x1FFFFF) << 21) | (iz & 0x1FFFFF);
-                if (voxels.insert(key).second) {
+            // Keep the points high enough above their local ground, one point per voxel
+            pcl::PointCloud<pcl::PointXYZ> obstacles;
+            std::unordered_set<int64_t> voxels;
+            for (size_t i : valid) {
+                const auto & pt = pc_target[i];
+                float h = pt.z - ground[gridKey(pt.x, pt.y, 0.0, cluster_resolution_)];
+                if (h > floor_clearance_ && h < max_height_ &&
+                        voxels.insert(gridKey(pt.x, pt.y, pt.z, voxel_size_)).second) {
                     obstacles.push_back(pt);
                 }
             }
@@ -146,6 +150,14 @@ class CylinderDetector: public rclcpp::Node {
 
             publishCloud(obstacles, msg->header, obstacles_pub_);
             publishCloud(pc_inliers, msg->header, inliers_pub_);
+        }
+
+        // Key of the grid cell holding (x,y,z): 21 bits per axis, unique within +/- 2^20 cells
+        static int64_t gridKey(double x, double y, double z, double res) {
+            int64_t ix = static_cast<int64_t>(std::floor(x / res));
+            int64_t iy = static_cast<int64_t>(std::floor(y / res));
+            int64_t iz = static_cast<int64_t>(std::floor(z / res));
+            return ((ix & 0x1FFFFF) << 42) | ((iy & 0x1FFFFF) << 21) | (iz & 0x1FFFFF);
         }
 
         std::vector<Cylinder> detectCylinders(const pcl::PointCloud<pcl::PointXYZ> & obstacles,
@@ -443,12 +455,8 @@ class CylinderDetector: public rclcpp::Node {
                 if (c.n_obs < min_observations_) {
                     continue; // Not confirmed yet
                 }
-                // The floor filter cuts the bottom of the cylinders: if the lowest inliers are
-                // just above that cut, the cylinder stands on the floor.
-                double z_bottom = c.z_min;
-                if (z_bottom < floor_z_ + floor_clearance_ + 2 * voxel_size_) {
-                    z_bottom = floor_z_;
-                }
+                // The ground filter cuts the bottom floor_clearance of the cylinders
+                double z_bottom = c.z_min - floor_clearance_;
 
                 visualization_msgs::msg::Marker m;
                 m.header.stamp = now;
@@ -493,9 +501,8 @@ class CylinderDetector: public rclcpp::Node {
             this->declare_parameter("target_frame", std::string("world"));
             this->declare_parameter("min_range", 0.4);
             this->declare_parameter("max_range", 3.5);
-            this->declare_parameter("floor_z", 0.0);
             this->declare_parameter("floor_clearance", 0.05);
-            this->declare_parameter("max_z", 2.0);
+            this->declare_parameter("max_height", 2.0);
             this->declare_parameter("voxel_size", 0.02);
             this->declare_parameter("cluster_resolution", 0.05);
             this->declare_parameter("n_samples", 200);
@@ -515,9 +522,8 @@ class CylinderDetector: public rclcpp::Node {
             target_frame_ = this->get_parameter("target_frame").as_string();
             min_range_ = this->get_parameter("min_range").as_double();
             max_range_ = this->get_parameter("max_range").as_double();
-            floor_z_ = this->get_parameter("floor_z").as_double();
             floor_clearance_ = this->get_parameter("floor_clearance").as_double();
-            max_z_ = this->get_parameter("max_z").as_double();
+            max_height_ = this->get_parameter("max_height").as_double();
             voxel_size_ = this->get_parameter("voxel_size").as_double();
             cluster_resolution_ = this->get_parameter("cluster_resolution").as_double();
             n_samples_ = this->get_parameter("n_samples").as_int();
