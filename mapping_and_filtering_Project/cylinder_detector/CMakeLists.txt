@@ -15,6 +15,7 @@ find_package(tf2 REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -27,6 +28,7 @@ ament_target_dependencies(cylinder_detector
   sensor_msgs
   geometry_msgs
   visualization_msgs
+  nav_msgs
   tf2
   tf2_ros
   tf2_sensor_msgs

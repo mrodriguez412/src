@@ -11,6 +11,7 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
@@ -43,6 +44,7 @@ class CylinderDetector: public rclcpp::Node {
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr obstacles_pub_;
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr inliers_pub_;
         rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+        rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr grid_pub_;
         rclcpp::TimerBase::SharedPtr marker_timer_;
         std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
         std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
@@ -139,7 +141,7 @@ class CylinderDetector: public rclcpp::Node {
 
             // 2. and 3. Cluster the obstacles and fit cylinders in each cluster
             pcl::PointCloud<pcl::PointXYZ> pc_inliers;
-            std::vector<Cylinder> detections = detectCylinders(obstacles, sensor_x, sensor_y, pc_inliers);
+            std::vector<Cylinder> detections = detectCylinders(obstacles, sensor_x, sensor_y, msg->header, pc_inliers);
 
             // 4. Merge the detections into the map of cylinders
             for (const auto & d : detections) {
@@ -164,7 +166,8 @@ class CylinderDetector: public rclcpp::Node {
         }
 
         std::vector<Cylinder> detectCylinders(const pcl::PointCloud<pcl::PointXYZ> & obstacles,
-                double sensor_x, double sensor_y, pcl::PointCloud<pcl::PointXYZ> & pc_inliers) {
+                double sensor_x, double sensor_y, const std_msgs::msg::Header & header,
+                pcl::PointCloud<pcl::PointXYZ> & pc_inliers) {
             std::vector<Cylinder> detections;
             if (obstacles.empty()) {
                 return detections;
@@ -188,6 +191,7 @@ class CylinderDetector: public rclcpp::Node {
                                      static_cast<int>((obstacles[i].y - min_y) / cluster_resolution_));
                 occupied.at<uint8_t>(cells[i]) = 255;
             }
+            publishGrid(occupied, min_x, min_y, header);
             cv::Mat labels;
             int n_labels = cv::connectedComponents(occupied, labels, 8, CV_32S);
             std::vector<std::vector<size_t>> clusters(n_labels);
@@ -463,6 +467,28 @@ class CylinderDetector: public rclcpp::Node {
             pub->publish(out);
         }
 
+        // Clustering grid, for display: occupied cells at 100, the rest at 0
+        void publishGrid(const cv::Mat & occupied, double origin_x, double origin_y,
+                const std_msgs::msg::Header & header) {
+            nav_msgs::msg::OccupancyGrid grid;
+            grid.header.stamp = header.stamp;
+            grid.header.frame_id = target_frame_;
+            grid.info.resolution = cluster_resolution_;
+            grid.info.width = occupied.cols;
+            grid.info.height = occupied.rows;
+            grid.info.origin.position.x = origin_x;
+            grid.info.origin.position.y = origin_y;
+            grid.info.origin.orientation.w = 1.0;
+            // Row-major from the origin, rows along y: same layout as the cv::Mat
+            grid.data.resize(occupied.total());
+            for (int r = 0; r < occupied.rows; ++r) {
+                for (int c = 0; c < occupied.cols; ++c) {
+                    grid.data[r * occupied.cols + c] = occupied.at<uint8_t>(r, c) ? 100 : 0;
+                }
+            }
+            grid_pub_->publish(grid);
+        }
+
         void publishMarkers() {
             visualization_msgs::msg::MarkerArray markers;
             rclcpp::Time now = this->get_clock()->now();
@@ -569,6 +595,7 @@ class CylinderDetector: public rclcpp::Node {
             marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("~/cylinders", 1);
             obstacles_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/obstacles", 1);
             inliers_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/inliers", 1);
+            grid_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("~/grid", 1);
 
             marker_timer_ = this->create_wall_timer(
                 std::chrono::milliseconds(500),
