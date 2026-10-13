@@ -147,6 +147,7 @@ install(
 
 install(PROGRAMS  
 	missions/graph_forever.py
+	missions/graph_forever-test.py
 	missions/test_goto.py
 	missions/test_graph_2d.py
 	missions/test_graph.py

@@ -23,7 +23,7 @@ class GraphPublisher(Node):
         for v in g.vs:
             marker = Marker()
             marker.header.stamp = now.to_msg()
-            marker.header.frame_id = "/world"
+            marker.header.frame_id = "world"
             marker.ns = "graph_nodes"
             marker.id = id; id += 1
             marker.type = Marker.CYLINDER
@@ -45,7 +45,7 @@ class GraphPublisher(Node):
             print (e.source,e.target)
             marker = Marker()
             marker.header.stamp = now.to_msg()
-            marker.header.frame_id = "/world"
+            marker.header.frame_id = "world"
             marker.ns = "graph_edges"
             marker.id = id; id += 1
             marker.type = Marker.LINE_STRIP
