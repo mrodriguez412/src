@@ -1,0 +1,9 @@
+catkin-pkg
+matplotlib
+opencv-python
+pytest
+tensorboard
+ipython
+torch
+torchinfo
+torchvision
