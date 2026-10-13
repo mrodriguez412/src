@@ -57,6 +57,9 @@ def generate_launch_description():
             {'min_range': LaunchConfiguration('min_range')},
             {'max_range': LaunchConfiguration('max_range')},
             {'min_points_bucket': 5},
+            {'p_hit_near': 0.8},   # confiance d'une observation à min_range
+            {'p_hit_far': 0.55},   # confiance d'une observation à max_range
+            {'l_max': 5.0},        # saturation log-odds (P ~ 0.993)
             {'target_frame': 'world'},
         ],
         output='screen',

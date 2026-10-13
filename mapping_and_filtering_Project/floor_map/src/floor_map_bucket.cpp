@@ -3,6 +3,8 @@
 #include <random>
 #include <map>
 #include <vector>
+#include <algorithm>
+#include <cmath>
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -46,8 +48,11 @@ class FloorMapBucket: public rclcpp::Node {
         double min_range_;
         double max_range_;
         int min_points_bucket_;   
+        double p_hit_near_; // P(observation correcte) à min_range
+        double p_hit_far_;  // P(observation correcte) à max_range
+        double l_max_;      // Saturation du log-odds
         
-        cv::Mat map_;
+        cv::Mat map_;      // Log-odds l = log(P(obstacle)/P(traversable)), 0 = inconnu (P = 0.5)
         cv::Mat cost_map_; // Carte de coût continu (0 à 100), -1.0f = inconnu
 
 
@@ -85,7 +90,11 @@ class FloorMapBucket: public rclcpp::Node {
             pcl::fromPCLPointCloud2(cloud2,pc_target);
 
             // 1. Remplissage des buckets avec filtrage 3D de la portée capteur
-            std::map<std::pair<int, int>, std::vector<pcl::PointXYZ>> buckets;
+            struct Bucket {
+                std::vector<pcl::PointXYZ> pts;
+                double sum_range = 0.0;
+            };
+            std::map<std::pair<int, int>, Bucket> buckets;
             size_t n = pc_sensor.size();
             for (size_t i = 0; i < n; ++i) {
                 const auto & ps = pc_sensor[i];
@@ -105,7 +114,9 @@ class FloorMapBucket: public rclcpp::Node {
 
                 int gx, gy;
                 if (worldToGrid(pt.x, pt.y, gx, gy)) {
-                    buckets[{gx, gy}].push_back(pt);
+                    auto & b = buckets[{gx, gy}];
+                    b.pts.push_back(pt);
+                    b.sum_range += d_sensor;
                 }
             }
             
@@ -114,7 +125,7 @@ class FloorMapBucket: public rclcpp::Node {
             for (const auto & entry : buckets) {
                 int gx = entry.first.first;
                 int gy = entry.first.second;
-                const auto & pts = entry.second;
+                const auto & pts = entry.second.pts;
 
                 if (pts.size() < static_cast<size_t>(min_points_bucket_)) {
                     continue; // Pas assez de points pour conclure
@@ -159,12 +170,17 @@ class FloorMapBucket: public rclcpp::Node {
                     cost = static_cast<float>(std::min(100.0, std::max(0.0, ratio * 100.0)));
                 }
 
-                // 3. Mise à jour de map_ (Binaire sécuritaire)
-                if (is_obstacle) {
-                    map_.at<uint8_t>(gy, gx) = 0;   // Obstacle (Noir)
-                } else if (map_.at<uint8_t>(gy, gx) == 127) {
-                    map_.at<uint8_t>(gy, gx) = 255; // Traversable (Blanc)
-                }
+                // 3. Filtre de Bayes binaire en log-odds
+                // Modèle capteur symétrique : P(z=obs|obstacle) = P(z=libre|traversable) = p(d),
+                // p(d) décroît linéairement de p_hit_near (min_range) à p_hit_far (max_range).
+                // l_t = l_{t-1} + log(P(z|obstacle)/P(z|traversable)) = l_{t-1} +/- log(p/(1-p))
+                double range = entry.second.sum_range / pts.size();
+                double alpha = std::clamp((range - min_range_) / (max_range_ - min_range_), 0.0, 1.0);
+                double p_hit = p_hit_near_ + alpha * (p_hit_far_ - p_hit_near_);
+                double l_obs = std::log(p_hit / (1.0 - p_hit));
+                float & l = map_.at<float>(gy, gx);
+                l += static_cast<float>(is_obstacle ? l_obs : -l_obs);
+                l = std::clamp(l, static_cast<float>(-l_max_), static_cast<float>(l_max_));
 
                 // 4. Mise à jour de cost_map_ (Continu [0, 100])
                 if (cost_map_.at<float>(gy, gx) < 0.0f) {
@@ -206,15 +222,15 @@ class FloorMapBucket: public rclcpp::Node {
 
             for (int y = 0; y < height_cells_; ++y) {
                 for (int x = 0; x < width_cells_; ++x) {
-                    uint8_t val = map_.at<uint8_t>(y, x);
+                    float l = map_.at<float>(y, x);
                     int index = y * width_cells_ + x;
 
-                    if (val == 255) {
-                        grid.data[index] = 0;   // Traversable (Libre)
-                    } else if (val == 0) {
-                        grid.data[index] = 100; // Non-traversable (Obstacle)
+                    if (l == 0.0f) {
+                        grid.data[index] = -1;  // Inconnu (jamais observé, P = 0.5)
                     } else {
-                        grid.data[index] = -1;  // Inconnu (127)
+                        // P(obstacle) = 1 - 1/(1+exp(l)), publiée sur [0, 100]
+                        double p = 1.0 - 1.0 / (1.0 + std::exp(l));
+                        grid.data[index] = static_cast<int8_t>(std::round(100.0 * p));
                     }
                 }
             }
@@ -259,6 +275,9 @@ class FloorMapBucket: public rclcpp::Node {
             this->declare_parameter("min_range", 0.1);
             this->declare_parameter("max_range", 4.0);
             this->declare_parameter("min_points_bucket", 5);
+            this->declare_parameter("p_hit_near", 0.8);
+            this->declare_parameter("p_hit_far", 0.55);
+            this->declare_parameter("l_max", 5.0);
 
             min_x_ = this->get_parameter("min_x").as_double();
             max_x_ = this->get_parameter("max_x").as_double();
@@ -274,13 +293,16 @@ class FloorMapBucket: public rclcpp::Node {
             min_range_ = this->get_parameter("min_range").as_double();
             max_range_ = this->get_parameter("max_range").as_double();
             min_points_bucket_ = this->get_parameter("min_points_bucket").as_int();
+            p_hit_near_ = this->get_parameter("p_hit_near").as_double();
+            p_hit_far_ = this->get_parameter("p_hit_far").as_double();
+            l_max_ = this->get_parameter("l_max").as_double();
 
             // Calcul des dimensions de la grille
             width_cells_ = static_cast<int>(std::round((max_x_ - min_x_) / resolution_));
             height_cells_ = static_cast<int>(std::round((max_y_ - min_y_) / resolution_));
 
             // Allocation des matrices OpenCV
-            map_ = cv::Mat(height_cells_, width_cells_, CV_8UC1, cv::Scalar(127));          // 127 = Inconnu
+            map_ = cv::Mat(height_cells_, width_cells_, CV_32F, cv::Scalar(0.0f));          // log-odds 0 = Inconnu
             cost_map_ = cv::Mat(height_cells_, width_cells_, CV_32F, cv::Scalar(-1.0f));    // -1.0 = Inconnu
 
             // Initialisation de TF2
@@ -298,9 +320,9 @@ class FloorMapBucket: public rclcpp::Node {
             cost_map_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("~/cost_map", 1);
 
             // Timer à 2 Hz (500 ms) pour rafraîchir et publier les cartes en continu
-            //map_timer_ = this->create_wall_timer(
-            //    std::chrono::milliseconds(100),
-            //    std::bind(&FloorMapBucket::publishMap, this));
+            map_timer_ = this->create_wall_timer(
+                std::chrono::milliseconds(100),
+                std::bind(&FloorMapBucket::publishMap, this));
 
             RCLCPP_INFO(this->get_logger(),
                         "FloorMapBucket pret : grille %dx%d (resolution %.2fm), metrique '%s'",
