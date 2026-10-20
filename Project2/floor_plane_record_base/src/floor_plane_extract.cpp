@@ -87,13 +87,23 @@ class FloorPlaneExtract: public rclcpp::Node {
                 const cv::Mat_<float> & thumb_z) {
             // TODO: Modify this function to take a decision on the traversability of the patch of ground 
             // corresponding to this image.
+            int traversable_pixel = 0;
             for (int r=0;r<thumb_z.rows;r++) {
                 for (int c=0;c<thumb_z.cols;c++) {
                     if (std::isnan(thumb_z(r,c))) {
                         // ignore this point, it has not been observed from the kinect
                         continue;
                     }
+                    if (thumb_z(r,c)<height_threshold_){
+                        traversable_pixel = traversable_pixel + 1;
+                    }
+                    else {
+                        return UNTRAVERSABLE;
+                    }
                 }
+            }
+            if (traversable_pixel>10){
+                return TRAVERSABLE;
             }
             return UNUSABLE;
         }
