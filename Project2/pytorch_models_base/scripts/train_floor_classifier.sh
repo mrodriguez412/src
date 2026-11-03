@@ -1,10 +1,10 @@
 #!/bin/bash
 
-BASE_DIR="$1"
+BASE_DIR="../../Recorded_data"
 shift
 
 # Traversable/Not
-python3 train.py \
+python3 ../pytorch_models_base/train.py \
     --train_file ${BASE_DIR}/train/labels.txt \
     --train_root ${BASE_DIR}/train \
     --val_root ${BASE_DIR}/val \
