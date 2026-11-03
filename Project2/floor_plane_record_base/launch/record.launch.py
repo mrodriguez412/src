@@ -51,7 +51,7 @@ def generate_launch_description():
                 {'~/out_dir': "/tmp"},
                 {'~/thumb_size': 32},
                 {'~/max_range': 3.0},
-                {'~/height_threshold': 0.05},
+                {'~/height_threshold': -0.3},
                 {'~/min_displacement': 0.1},
                 {'~/min_rotation': 0.1},
                 {'~/max_image_per_type': 1000},
