@@ -24,7 +24,7 @@ class Train:
     def __init__(self):
         self.settings = ParseArgs()
         # Set device to use CUDA
-        if not self.settings.nocuda and torch.cuda.is_available():
+        if torch.cuda.is_available():
             self.device = torch.device('cuda')
             print("Using CUDA for Torch")
         else:
