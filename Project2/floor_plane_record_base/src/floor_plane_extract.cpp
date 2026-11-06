@@ -102,7 +102,7 @@ class FloorPlaneExtract: public rclcpp::Node {
                     }
                 }
             }
-            if (traversable_pixel>10){
+            if (traversable_pixel > 10){
                 return TRAVERSABLE;
             }
             return UNUSABLE;
@@ -306,7 +306,7 @@ class FloorPlaneExtract: public rclcpp::Node {
             this->declare_parameter("~/max_range",5.0);
             this->declare_parameter("~/thumb_size",32);
             this->declare_parameter("~/out_dir",std::string("."));
-            this->declare_parameter("~/height_threshold",-0.3);
+            this->declare_parameter("~/height_threshold",0.02);
             this->declare_parameter("~/min_displacement",0.1);
             this->declare_parameter("~/min_rotation",0.1);
             this->declare_parameter("~/max_image_per_type",1000);
