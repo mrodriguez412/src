@@ -46,6 +46,14 @@ class Train:
         print(f"Train dataset: {len(self.train_dataset)} images")
         self.val_dataset = PNGReader(self.settings.val_file, self.settings.val_root, self.is_cross_entropy)
         print(f"Val dataset: {len(self.val_dataset)} images")
+        if self.is_cross_entropy:
+            # Class-weighted loss: rare labels (e.g. turns) count as much as frequent ones (straight),
+            # otherwise the network learns to mostly predict the majority label.
+            # weight = N / (num_classes * count); for a balanced dataset all weights are 1.
+            counts = np.bincount(self.train_dataset.y, minlength=self.settings.num_class).astype(np.float32)
+            weights = np.where(counts > 0, len(self.train_dataset.y) / (self.settings.num_class * np.maximum(counts, 1)), 0.)
+            print(f"Train label counts {counts.astype(int).tolist()} -> loss weights {np.round(weights, 2).tolist()}")
+            self.train_loss = nn.CrossEntropyLoss(weight=torch.tensor(weights, dtype=torch.float32).to(self.device))
 
         # Training transforms - comprehensive augmentation
         train_transforms = A.Compose([
@@ -99,32 +107,8 @@ class Train:
         x_val_batches_per_epoch = math.ceil(len(self.val_dataset) / self.settings.bs)
         # Iterate over the number of epochs
         for epoch in range(max_epoch):
-            # Set model to eval mode so weights and dropout arn't calculated for train
-            self.model.eval()
-            batch_loss_val = 0.0
-            batch_acc_val = 0.0
-            # for all batches in val
-            with torch.no_grad():
-                first = True
-                for x, y in self.val_loader:
-                    x = x.to(self.device)
-                    y = y.to(self.device)
-                    val_pred = self.model(x)
-                    if not self.is_cross_entropy:
-                        val_pred = val_pred.squeeze(1)
-                    if self.is_cross_entropy:
-                        val_acc = self.calc_accuracy(val_pred, y)
-                    else:
-                        val_acc = self.calc_accuracy_mse(val_pred, y)
-                    val_loss = self.val_loss(val_pred, y)
-                    batch_loss_val += val_loss.item()
-                    batch_acc_val += val_acc.item()
-                    first = False
-            batch_loss_val /= x_val_batches_per_epoch
-            batch_acc_val /= x_val_batches_per_epoch
-            val_losses.append(batch_loss_val)
-            val_accuracies.append(batch_acc_val)
-
+            # Train first, then validate the weights we just trained, so the checkpoint
+            # saved below is exactly the one that got this validation score.
             # allow model weights to update
             self.model.train()
             batch_loss_train = 0.0
@@ -152,6 +136,33 @@ class Train:
             train_losses.append(batch_loss_train)
             train_accuracies.append(batch_acc_train)
 
+            # Set model to eval mode so weights and dropout arn't calculated for train
+            self.model.eval()
+            batch_loss_val = 0.0
+            val_correct = 0.0
+            val_total = 0
+            # for all batches in val
+            with torch.no_grad():
+                for x, y in self.val_loader:
+                    x = x.to(self.device)
+                    y = y.to(self.device)
+                    val_pred = self.model(x)
+                    if not self.is_cross_entropy:
+                        val_pred = val_pred.squeeze(1)
+                    if self.is_cross_entropy:
+                        val_acc = self.calc_accuracy(val_pred, y)
+                    else:
+                        val_acc = self.calc_accuracy_mse(val_pred, y)
+                    val_loss = self.val_loss(val_pred, y)
+                    batch_loss_val += val_loss.item()
+                    # weight by batch size, so the smaller last batch doesn't skew the average
+                    val_correct += val_acc.item() * len(y)
+                    val_total += len(y)
+            batch_loss_val /= x_val_batches_per_epoch
+            batch_acc_val = val_correct / val_total
+            val_losses.append(batch_loss_val)
+            val_accuracies.append(batch_acc_val)
+
             # Log to tensorboard
             self.writer.add_scalar("Loss/train", batch_loss_train, epoch)
             self.writer.add_scalar("Loss/val",   batch_loss_val, epoch)
@@ -161,7 +172,8 @@ class Train:
             if batch_acc_val >= best_acc:
                 best_acc = batch_acc_val
                 type_ =  "ce" if self.is_cross_entropy else "mse"
-                torch.save(self.model.state_dict(), f"{self.settings.model_dir}/model_{type_}_{round(val_acc.item()*100)}.pt")
+                # name = epoch + accuracy on the WHOLE validation set (not just the last batch)
+                torch.save(self.model.state_dict(), f"{self.settings.model_dir}/model_{type_}_ep{epoch+1:02d}_val{round(batch_acc_val*100)}.pt")
         self.writer.add_hparams(
             {
                 "lr": self.settings.lr,

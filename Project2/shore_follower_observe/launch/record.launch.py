@@ -34,25 +34,34 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 
 import launch_ros.actions
 import launch_ros.descriptions
 
 
 def generate_launch_description():
+    # WARNING: the node empties <out_dir>/labels.txt when it starts. Use a different out_dir
+    # for each run (train, val, ...) or you lose the labels of the previous recording.
+    out_dir = LaunchConfiguration('out_dir')
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'out_dir',
+            default_value='/home/GTL/mrodrgue/ros2_ws/src/Project2/Recorded_data_shore/train',
+            description='folder where images and labels.txt are written (must exist)'),
         launch_ros.actions.Node(
             package='shore_follower_observe', executable='shore_follower_observe', name='shore_follower_observe',
             parameters=[
                 {'~/base_frame': 'bubbleRob'},
                 {'~/world_frame': 'world'},
-                {'~/out_dir': "/tmp/cedricp/shore_follower/train"},
+                {'~/out_dir': out_dir},
+                # joystick max rotation is 0.5 (scale_angular), so 0.2 = stick pushed ~40% sideways
                 {'~/rotation_threshold': 0.2},
                 {'~/min_displacement': 0.05},
                 {'~/min_rotation': 0.1},
-                {'~/max_image_per_type': 500},
+                {'~/max_image_per_type': 1000},
                 {'~/joystick_button': 3},
                 ],
             remappings=[
