@@ -80,3 +80,8 @@ cd FinalProject/treasure_detector && python3 -m pytest test/
 The tests run offline against the simulator's exact formula. They cover a
 curved pass (error < 15 cm), a straight pass (flagged ambiguous), background
 only (no detection), and a truck parked at 5 m after the pass (no drift).
+
+
+ideas
+
+slow down the car when the arm tip wants to move a big distance
