@@ -11,6 +11,7 @@ import math
 
 import numpy as np
 import rclpy
+from scipy.ndimage import maximum_filter
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from rclpy.time import Time
@@ -71,6 +72,8 @@ class TreasureDetector(Node):
         self.mode_radius = p('mode_radius', 0.75).value
         self.ambiguity_gap = p('ambiguity_gap', 3.0).value
         self.heat_k = max(1, int(round(p('heatmap_resolution', 0.25).value / self.grid.res)))
+        heat_cell = self.grid.res * self.heat_k
+        self.heat_window = 2 * int(p('heatmap_window', 10.0).value / heat_cell / 2) + 1
         self.marker_z = self.grid.treasure_z
 
         self.tf_buffer = Buffer()
@@ -196,7 +199,8 @@ class TreasureDetector(Node):
         return m
 
     def heatmap_cb(self):
-        """LLR map of everything explored so far: 100 = detection threshold, -1 = unseen.
+        """Votes over everything explored: 100 = strongest cell within
+        heatmap_window, 0 = no evidence or evidence against, -1 = never sensed.
 
         The 5 cm grid is max-pooled into heatmap_resolution cells so that the
         whole lake stays light enough for RViz and peaks do not get averaged out.
@@ -211,7 +215,14 @@ class TreasureDetector(Node):
         blocks = sub.reshape(sub.shape[0] // k, k, sub.shape[1] // k, k)
         peak = blocks.max(axis=(1, 3))
         seen = (blocks != 0.0).any(axis=(1, 3))
-        data = np.clip(100.0 * peak / self.llr_threshold, 0, 100).astype(np.int8)
+        # The LLR keeps growing with every reading, so a fixed scale saturates
+        # every ring within a second. Scale each cell relative to the strongest
+        # cell within heatmap_window instead: the best intersection is 100 and
+        # a ring holding a quarter of that evidence is 25. The detection
+        # threshold sets a floor so background noise is not magnified.
+        local_max = maximum_filter(np.maximum(peak, 0.0), size=self.heat_window)
+        scale = np.maximum(local_max, self.llr_threshold)
+        data = np.clip(100.0 * peak / scale, 0, 100).astype(np.int8)
         data[~seen] = -1
         g = OccupancyGrid()
         g.header.frame_id = self.world_frame
