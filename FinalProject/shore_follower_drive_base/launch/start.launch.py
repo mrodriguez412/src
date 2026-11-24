@@ -12,26 +12,31 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'model',
-            default_value='/home/GTL/mrodrgue/ros2_ws/src/Project2/Recorded_data_shore/output/models/model_ce_ep19_val70.pt',
+            default_value='/home/GTL/rmartine/Documents/gitcommun/src/FinalProject/Recorded_data_shore/output/models/model_ce_ep23_val74.pt',
             description='pytorch checkpoint to load'),
         launch_ros.actions.Node(
             package='shore_follower_drive_base', executable='shore_follower_drive_node', name='shore_follower_drive',
             parameters=[
                 {'~/model': model},
                 {'~/regression': False},
-                {'~/linear_vel': 0.3},    # same as the joystick max forward speed (scale_linear_x)
-                {'~/twist_factor': 0.4},  # rotation when sure to turn, between threshold (0.2) and joystick max (0.5)
+                # vsv_driver clamps the turning radius to 5 m (angular.z <= linear.x / 5),
+                # so twist_factor must stay <= linear_vel / 5 or the turn is cut.
+                # 1.0 m/s is also the lowest speed at which a recorded turn (|w| > 0.2) is possible.
+                {'~/linear_vel': 1.0},
+                {'~/twist_factor': 0.2},  # full steering lock at 1.0 m/s
                 {'~/dropout': 0.5},       # only used at train time, kept equal to --dropout for clarity
                 ],
             remappings=[
-                ('~/image', '/vrep/kision/image'),
-                ('~/twist', '/mux/autoCommand'),
+                ('~/image', '/vrep/vision/image'),
+                ('~/twist', '/base_mux/autoCommand'),
                 ],
             output='screen'),
 
-        # Joystick + mux: button 0 = manual control, button 1 = network (auto) control
+        # Joystick + muxes: button 4 = manual driving, button 5 = network (auto) driving
+        # (0/1/2 are taken by the arm deploy/park/move buttons in vsv_teleop)
         IncludeLaunchDescription(
-              PythonLaunchDescriptionSource([get_package_share_directory('vrep_ros_teleop'),
-                        '/teleop_mux.launch.py'])
+              PythonLaunchDescriptionSource([get_package_share_directory('vsv_teleop'),
+                        '/launch/vsv_teleop.launch.py']),
+              launch_arguments={'base_joy_button': '4', 'base_auto_button': '5'}.items(),
               )
     ])

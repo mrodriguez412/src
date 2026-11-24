@@ -49,25 +49,25 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'out_dir',
-            default_value='/home/GTL/mrodrgue/ros2_ws/src/Project2/Recorded_data_shore/train',
+            default_value='/home/GTL/rmartine/Documents/gitcommun/src/FinalProject/Recorded_data_shore/val',
             description='folder where images and labels.txt are written (must exist)'),
         launch_ros.actions.Node(
             package='shore_follower_observe', executable='shore_follower_observe', name='shore_follower_observe',
             parameters=[
-                {'~/base_frame': 'bubbleRob'},
+                {'~/base_frame': 'VSV/base'},
                 {'~/world_frame': 'world'},
                 {'~/out_dir': out_dir},
                 # joystick max rotation is 0.5 (scale_angular), so 0.2 = stick pushed ~40% sideways
                 {'~/rotation_threshold': 0.2},
                 {'~/min_displacement': 0.05},
                 {'~/min_rotation': 0.1},
-                {'~/max_image_per_type': 1000},
+                {'~/max_image_per_type': 400},
                 {'~/joystick_button': 3},
                 ],
             remappings=[
                 ('~/joy', '/joy'),
-                ('~/image', '/vrep/kision/image'),
-                ('~/twist', '/vrep/twistCommand'),
+                ('~/image', '/vrep/vision/image'),
+                ('~/twist', '/vsv_driver/twistCommand'),
                 ],
             output='screen'),
     ])

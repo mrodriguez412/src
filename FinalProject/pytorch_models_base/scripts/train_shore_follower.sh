@@ -1,14 +1,15 @@
 #!/bin/bash
-# Run from this scripts/ folder, with the GPU venv active:
-#   ./train_shore_follower.sh                      (uses ../../Recorded_data_shore)
+# Run from anywhere, with the GPU venv active:
+#   ./train_shore_follower.sh                      (uses FinalProject/Recorded_data_shore)
 #   ./train_shore_follower.sh /other/dataset/dir   (to train on another dataset)
 # The output folder must NOT exist yet (the parser refuses to overwrite models):
 # delete or rename ${BASE_DIR}/output before re-training.
 
-BASE_DIR="${1:-../../Recorded_data_shore}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="${1:-${SCRIPT_DIR}/../../Recorded_data_shore}"
 
 # Shore follower: 3 classes (0 = turn with negative z, 1 = straight, 2 = turn with positive z)
-python3 ../pytorch_models_base/train.py \
+python3 "${SCRIPT_DIR}/../pytorch_models_base/train.py" \
     --train_file ${BASE_DIR}/train/labels.txt \
     --train_root ${BASE_DIR}/train \
     --val_root ${BASE_DIR}/val \

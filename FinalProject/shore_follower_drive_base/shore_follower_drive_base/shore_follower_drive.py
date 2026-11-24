@@ -13,7 +13,23 @@ import torch
 import numpy as np
 
 import cv2
-from cv_bridge2 import CvBridge
+
+
+def imgmsg_to_bgr8(msg):
+    # Replaces cv_bridge2.imgmsg_to_cv2(msg, "bgr8"): its compiled module was built against
+    # NumPy 1.x and crashes with the venv's NumPy 2.x. Handles 8-bit color encodings only.
+    channels = {'rgb8': 3, 'bgr8': 3, 'rgba8': 4, 'bgra8': 4}.get(msg.encoding)
+    if channels is None:
+        raise ValueError("Unsupported image encoding '%s'" % msg.encoding)
+    img = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.step)
+    img = img[:, :msg.width * channels].reshape(msg.height, msg.width, channels)
+    if msg.encoding == 'rgb8':
+        return cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    if msg.encoding == 'rgba8':
+        return cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+    if msg.encoding == 'bgra8':
+        return cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    return img.copy()
 
 
 # Label convention from shore_follower_observe.cpp:
@@ -42,7 +58,6 @@ class ShoreFollowerDrive(Node):
 
         self.load_model()
 
-        self.br = CvBridge()
         self.twist_pub_ = self.create_publisher(Twist, "~/twist", 1)
         self.image_sub_ = self.create_subscription(Image, "~/image", self.image_callback, 1)
 
@@ -59,7 +74,7 @@ class ShoreFollowerDrive(Node):
 
     def image_callback(self, data):
         # Same preprocessing as training (reader.py): whole BGR image shrunk to 32x32 with INTER_AREA
-        raw = self.br.imgmsg_to_cv2(data, "bgr8")
+        raw = imgmsg_to_bgr8(data)
         processed_ = np.expand_dims(cv2.resize(raw, (32, 32), interpolation=cv2.INTER_AREA), axis=0)
         self.twist_pub_.publish(self.image_to_rot(processed_))
 
